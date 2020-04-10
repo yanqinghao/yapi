@@ -22,7 +22,7 @@ const path = require('path');
 
 function handleHeaders(values){
   let isfile = false,
-  isHavaContentType = false;
+  isHaveContentType = false;
   if (values.req_body_type === 'form') {
     values.req_body_form.forEach(item => {
       if (item.type === 'file') {
@@ -33,10 +33,10 @@ function handleHeaders(values){
     values.req_headers.map(item => {
       if (item.name === 'Content-Type') {
         item.value = isfile ? 'multipart/form-data' : 'application/x-www-form-urlencoded';
-        isHavaContentType = true;
+        isHaveContentType = true;
       }
     });
-    if (isHavaContentType === false) {
+    if (isHaveContentType === false) {
       values.req_headers.unshift({
         name: 'Content-Type',
         value: isfile ? 'multipart/form-data' : 'application/x-www-form-urlencoded'
@@ -47,11 +47,11 @@ function handleHeaders(values){
       ? values.req_headers.map(item => {
           if (item.name === 'Content-Type') {
             item.value = 'application/json';
-            isHavaContentType = true;
+            isHaveContentType = true;
           }
         })
       : [];
-    if (isHavaContentType === false) {
+    if (isHaveContentType === false) {
       values.req_headers = values.req_headers || [];
       values.req_headers.unshift({
         name: 'Content-Type',
@@ -125,7 +125,8 @@ class interfaceController extends baseController {
       api_opened: 'boolean',
       req_body_is_json_schema: 'string',
       res_body_is_json_schema: 'string',
-      markdown: 'string'
+      markdown: 'string',
+      tag: 'array'
     };
 
     this.schemaMap = {
@@ -148,8 +149,7 @@ class interfaceController extends baseController {
           method: minLengthStringField,
           catid: 'number',
           switch_notice: 'boolean',
-          message: minLengthStringField,
-          tag: 'array'
+          message: minLengthStringField
         },
         addAndUpCommonField
       ),
@@ -161,6 +161,7 @@ class interfaceController extends baseController {
           path: minLengthStringField,
           method: minLengthStringField,
           message: minLengthStringField,
+          switch_notice: 'boolean',
           dataSync: 'string'
         },
         addAndUpCommonField
@@ -326,10 +327,9 @@ class interfaceController extends baseController {
    * @param  {String} [desc] 接口描述
    * @returns {Object}
    */
-
   async save(ctx) {
     let params = ctx.params;
-    
+
     if (!this.$tokenAuth) {
       let auth = await this.checkAuth(params.project_id, 'project', 'edit');
       if (!auth) {
@@ -358,7 +358,7 @@ class interfaceController extends baseController {
         let validParams = Object.assign({}, params)
         let validResult = yapi.commons.validateParams(this.schemaMap['up'], validParams);
         if (validResult.valid) {
-          let data = {};
+          let data = Object.assign({}, ctx);
           data.params = validParams;
 
           if(params.res_body_is_json_schema && params.dataSync === 'good'){
@@ -449,6 +449,8 @@ class interfaceController extends baseController {
     let project_id = ctx.params.project_id;
     let page = ctx.request.query.page || 1,
       limit = ctx.request.query.limit || 10;
+    let status = ctx.request.query.status,
+      tag = ctx.request.query.tag;
     let project = await this.projectModel.getBaseInfo(project_id);
     if (!project) {
       return (ctx.body = yapi.commons.resReturn(null, 407, '不存在的项目'));
@@ -463,14 +465,31 @@ class interfaceController extends baseController {
     }
 
     try {
-      let result;
+      let result, count;
       if (limit === 'all') {
         result = await this.Model.list(project_id);
+        count = await this.Model.listCount({project_id});
       } else {
-        result = await this.Model.listWithPage(project_id, page, limit);
+        let option = {project_id};
+        if (status) {
+          if (Array.isArray(status)) {
+            option.status = {"$in": status};
+          } else {
+            option.status = status;
+          }
+        }
+        if (tag) {
+          if (Array.isArray(tag)) {
+            option.tag = {"$in": tag};
+          } else {
+            option.tag = tag;
+          }
+        }
+
+        result = await this.Model.listByOptionWithPage(option, page, limit);
+        count = await this.Model.listCount(option);
       }
 
-      let count = await this.Model.listCount({ project_id });
 
       ctx.body = yapi.commons.resReturn({
         count: count,
@@ -497,6 +516,8 @@ class interfaceController extends baseController {
     let catid = ctx.request.query.catid;
     let page = ctx.request.query.page || 1,
       limit = ctx.request.query.limit || 10;
+    let status = ctx.request.query.status,
+      tag = ctx.request.query.tag;
 
     if (!catid) {
       return (ctx.body = yapi.commons.resReturn(null, 400, 'catid不能为空'));
@@ -511,9 +532,26 @@ class interfaceController extends baseController {
         }
       }
 
-      let result = await this.Model.listByCatidWithPage(catid, page, limit);
 
-      let count = await this.Model.listCount({ catid });
+      let option = {catid}
+      if (status) {
+        if (Array.isArray(status)) {
+          option.status = {"$in": status};
+        } else {
+          option.status = status;
+        }
+      }
+      if (tag) {
+        if (Array.isArray(tag)) {
+          option.tag = {"$in": tag};
+        } else {
+          option.tag = tag;
+        }
+      }
+
+      let result = await this.Model.listByOptionWithPage(option, page, limit);
+
+      let count = await this.Model.listCount(option);
 
       ctx.body = yapi.commons.resReturn({
         count: count,
@@ -586,7 +624,6 @@ class interfaceController extends baseController {
    * @returns {Object}
    * @example ./api/interface/up.json
    */
-
   async up(ctx) {
     let params = ctx.params;
 
@@ -620,7 +657,7 @@ class interfaceController extends baseController {
       },
       params
     );
-    
+
     if (params.path) {
       let http_path;
       http_path = url.parse(params.path, true);
@@ -717,7 +754,7 @@ class interfaceController extends baseController {
       );
 
       let project = await this.projectModel.getBaseInfo(interfaceData.project_id);
-    
+
       let interfaceUrl = `${ctx.request.origin}/project/${
         interfaceData.project_id
       }/interface/api/${id}`;
@@ -984,7 +1021,6 @@ class interfaceController extends baseController {
    * @returns {Object}
    * @example ./api/interface/getCatMenu
    */
-
   async getCatMenu(ctx) {
     let project_id = ctx.params.project_id;
 
@@ -1079,7 +1115,6 @@ class interfaceController extends baseController {
    * @returns {Object}
    * @example
    */
-
   async upIndex(ctx) {
     try {
       let params = ctx.request.body;
@@ -1113,7 +1148,6 @@ class interfaceController extends baseController {
    * @returns {Object}
    * @example
    */
-
   async upCatIndex(ctx) {
     try {
       let params = ctx.request.body;
@@ -1142,7 +1176,7 @@ class interfaceController extends baseController {
     let required = ctx.request.body.required;
 
     let res = yapi.commons.schemaToJson(schema, {
-      alwaysFakeOptionals: _.isUndefined(required) ? true : require
+      alwaysFakeOptionals: _.isUndefined(required) ? true : required
     });
     // console.log('res',res)
     return (ctx.body = res);

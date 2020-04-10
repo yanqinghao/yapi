@@ -7,10 +7,11 @@ yapi.commons = commons;
 const dbModule = require('./utils/db.js');
 yapi.connect = dbModule.connect();
 const mockServer = require('./middleware/mockServer.js');
-const plugins = require('./plugin.js');
+require('./plugin.js');
 const websockify = require('koa-websocket');
 const websocket = require('./websocket.js');
 const storageCreator = require('./utils/storage')
+require('./utils/notice')
 
 const Koa = require('koa');
 const koaStatic = require('koa-static');
@@ -53,9 +54,14 @@ app.use(async (ctx, next) => {
   await next();
 });
 
+
 app.use(koaStatic(yapi.path.join(yapi.WEBROOT, 'static'), { index: indexFile, gzip: true }));
 
-app.listen(yapi.WEBCONFIG.port);
+
+const server = app.listen(yapi.WEBCONFIG.port);
+
+server.setTimeout(yapi.WEBCONFIG.timeout);
+
 commons.log(
   `服务已启动，请打开下面链接访问: \nhttp://127.0.0.1${
     yapi.WEBCONFIG.port == '80' ? '' : ':' + yapi.WEBCONFIG.port

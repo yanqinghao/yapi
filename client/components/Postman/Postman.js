@@ -35,6 +35,8 @@ const {
   checkNameIsExistInArray
 } = require('common/postmanLib.js');
 
+const plugin = require('client/plugin.js');
+
 const createContext = require('common/createContext')
 
 const HTTP_METHOD = constants.HTTP_METHOD;
@@ -133,8 +135,16 @@ export default class Run extends Component {
       envModalVisible: false,
       test_res_header: null,
       test_res_body: null,
+      autoPreviewHTML: true,
       ...this.props.data
     };
+  }
+
+  get testResponseBodyIsHTML() {
+    const hd = this.state.test_res_header
+    return hd != null
+      && typeof hd === 'object'
+      && String(hd['Content-Type'] || hd['content-type']).indexOf('text/html') !== -1
   }
 
   checkInterfaceData(data) {
@@ -206,12 +216,33 @@ export default class Run extends Component {
       body = JSON.stringify(result.data);
     }
 
+    let example = {}
+    if(this.props.type === 'inter'){
+      example = ['req_headers', 'req_query', 'req_body_form'].reduce(
+        (res, key) => {
+          res[key] = (data[key] || []).map(item => {
+            if (
+              item.type !== 'file' // 不是文件类型
+                && (item.value == null || item.value === '') // 初始值为空
+                && item.example != null // 有示例值
+            ) {
+              item.value = item.example;
+            }
+            return item;
+          })
+          return res;
+        },
+        {}
+      )
+    }
+
     this.setState(
       {
         ...this.state,
         test_res_header: null,
         test_res_body: null,
         ...data,
+        ...example,
         req_body_other: body,
         resStatusCode: null,
         test_valid_msg: null,
@@ -303,13 +334,29 @@ export default class Run extends Component {
     let options = handleParams(this.state, this.handleValue),
       result;
 
+
+    await plugin.emitHook('before_request', options, {
+      type: this.props.type,
+      caseId: options.caseId,
+      projectId: this.props.projectId,
+      interfaceId: this.props.interfaceId
+    });
+
     try {
       options.taskId = this.props.curUid;
-      result = await crossRequest(options, this.state.pre_script, this.state.after_script, createContext(
+      result = await crossRequest(options, options.pre_script || this.state.pre_script, options.after_script || this.state.after_script, createContext(
         this.props.curUid,
         this.props.projectId,
         this.props.interfaceId
       ));
+
+      await plugin.emitHook('after_request', result, {
+        type: this.props.type,
+        caseId: options.caseId,
+        projectId: this.props.projectId,
+        interfaceId: this.props.interfaceId
+      });
+
       result = {
         header: result.res.header,
         body: result.res.body,
@@ -317,6 +364,7 @@ export default class Run extends Component {
         statusText: result.res.statusText,
         runTime: result.runTime
       };
+
     } catch (data) {
       result = {
         header: data.header,
@@ -927,14 +975,25 @@ export default class Run extends Component {
                 <div className="body">
                   <div className="container-title">
                     <h4>Body</h4>
+                    <Checkbox
+                      checked={this.state.autoPreviewHTML}
+                      onChange={e => this.setState({ autoPreviewHTML: e.target.checked })}>
+                      <span>自动预览HTML</span>
+                    </Checkbox>
                   </div>
-                  <AceEditor
-                    readOnly={true}
-                    className="pretty-editor-body"
-                    data={this.state.test_res_body}
-                    mode={handleContentType(this.state.test_res_header)}
-                    // mode="html"
-                  />
+                  {
+                    this.state.autoPreviewHTML && this.testResponseBodyIsHTML
+                      ? <iframe
+                          className="pretty-editor-body"
+                          srcDoc={this.state.test_res_body}
+                        />
+                      : <AceEditor
+                          readOnly={true}
+                          className="pretty-editor-body"
+                          data={this.state.test_res_body}
+                          mode={handleContentType(this.state.test_res_header)}
+                      />
+                  }
                 </div>
               </div>
             </Spin>
