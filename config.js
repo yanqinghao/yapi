@@ -6,7 +6,7 @@ module.exports = {
     "connecString": process.env.connectString,
     "servername": "127.0.0.1",
     "DATABASE": "yapi",
-    "port": 27017,
+    "port": process.env.PORT,
     "user": process.env.connectUser,
     "pass": process.env.connectPass,
     "authSource": "yapi"
