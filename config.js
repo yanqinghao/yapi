@@ -2,13 +2,13 @@ module.exports = {
   "port": "3000",
   "adminAccount": "admin@admin.com",
   "db": {
-    "connecString": "mongodb+srv://suanpan:1qaz!QAZ@cluster0-obvp2.mongodb.net/yapi?retryWrites=true&w=majority",
+    "connecString": process.env.connectString,
     "servername": "127.0.0.1",
     "DATABASE": "yapi",
     "port": 27017,
-    "user": "suanpan",
-    "pass": "1qaz!QAZ",
-    "authSource": ""
+    "user": process.env.connectUser,
+    "pass": process.env.connectPass,
+    "authSource": "yapi"
   },
   "mail": {
     "enable": true,
