@@ -1,9 +1,9 @@
 module.exports = {
-  "port": process.env.connectString,
+  "port": process.env.PORT,
   "adminAccount": "admin@admin.com",
   "timeout":120000,
   "db": {
-    "connecString": process.env.connectString,
+    "connectString": process.env.connectString,
     "user": process.env.connectUser,
     "pass": process.env.connectPass,
   },
