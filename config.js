@@ -1,14 +1,15 @@
-{
+module.exports = {
   "port": "3000",
   "adminAccount": "admin@admin.com",
   "timeout":120000,
   "db": {
+    "connecString": process.env.connectString,
     "servername": "127.0.0.1",
     "DATABASE": "yapi",
     "port": 27017,
-    "user": "test1",
-    "pass": "test1",
-    "authSource": ""
+    "user": process.env.connectUser,
+    "pass": process.env.connectPass,
+    "authSource": "yapi"
   },
   "mail": {
     "enable": true,
